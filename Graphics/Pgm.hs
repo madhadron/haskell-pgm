@@ -8,7 +8,7 @@
 -- 
 -- If @maxVal@ < 256, then the format uses 1 byte per pixel; otherwise it uses 2.  The routines in this library properly handle both, including automatically determining which to write when writing an array to disk.
 -- 
--- The header can also contain comments, starting with @#@ on a new line, and continuing to the end of the line.  These are ignored by this module.
+-- The header can also contain comments, starting with @#@ on a new line, and continuing to the end of the line.  These are read out and returned as a String with newlines kept intact (except for the last newline of the last comment line, which is removed).  Comments from anywhere between the header fields are concatenated into the same document.  'pgmToArray' ignores comments; 'pgmToArrayWithComments' reads them.
 -- 
 -- After the header, the pixel data is written in big-endian binary form, most significant byte first for 16 bit pixels.  The pixels are a single row-major raster through the image.
 -- 
@@ -20,7 +20,11 @@
 -- 
 -- The array's indices (of the form (row,column)) start at (0,0) and run to (@height@-1,@width@-1).
 
-module Graphics.Pgm (pgmToArray, pgmsToArrays, pgmsFromFile, pgmsFromHandle, 
+module Graphics.Pgm (pgmToArray, 
+                     pgmsToArrays, 
+                     pgmToArrayWithComments, pgmsToArraysWithComments,
+                     arrayToPgmWithComment, 
+                     pgmsFromFile, pgmsFromHandle, 
             arrayToPgm, arrayToFile, arrayToHandle, arraysToHandle,
              arraysToFile) where
 
@@ -34,6 +38,7 @@ import Data.ByteString.Internal (c2w)
 import Data.Word
 import Text.Printf
 import Control.Monad (liftM)
+import Data.List (intercalate)
 
 magicNumber :: Parser ()
 magicNumber = do { char 'P'; char '5'; return () }
@@ -41,46 +46,75 @@ magicNumber = do { char 'P'; char '5'; return () }
 integer :: Parser Int
 integer = do { s <- many1 digit; return $ read s }
 
+width :: Parser Int
 width = integer
+
+height :: Parser Int
 height = integer
 
+maxVal :: Parser Int
 maxVal = do { i <- integer; return $ min 65536 i }
 
-comment :: Parser ()
-comment = do { char '#'; manyTill anyChar (try newline); return () }
+comment :: Parser String
+comment = do { char '#'; c <- manyTill anyChar (try newline); return $ c ++ "\n" }
 
-commentAwareWhiteSpace = many1 (choice [comment,do { many1 space; return () }])
+commentAwareWhiteSpace :: Parser String
+commentAwareWhiteSpace = liftM concat $ many1 (choice [comment,do { many1 space; return "" }])
 
-pgmHeader :: Parser (Int,Int,Int)
+pgmHeader :: Parser (Int,Int,Int,String)
 pgmHeader = do magicNumber <?> "magic number"
-               commentAwareWhiteSpace
+               hVal0 <- commentAwareWhiteSpace
                cols <- width <?> "width"
-               commentAwareWhiteSpace
+               hVal1 <- commentAwareWhiteSpace
                rows <- height <?> "height"
-               commentAwareWhiteSpace
+               hVal2 <- commentAwareWhiteSpace
                m <- maxVal <?> "maximum grey value"
                space
-               return (rows,cols,m)
+               let q = hVal0 ++ hVal1 ++ hVal2
+               return (rows,cols,m, Prelude.init q)
 
-pgm :: Parser (UArray (Int,Int) Int)
-pgm = do (rows,cols,m) <- pgmHeader
+pgmWithComments :: (IArray UArray a, Integral a) => Parser (UArray (Int,Int) a, String)
+pgmWithComments = do (rows,cols,m,comments) <- pgmHeader
+                     let d = if (m < 256) then 1 else 2
+                     ip <- getInput
+                     let body = B.take (rows*cols*d) ip
+                     setInput $ B.drop (rows*cols*d) ip
+                     let arr = readArray d rows cols body
+                     return (arr,comments)
+
+pgmsWithComments :: (IArray UArray a, Integral a) => Parser [(UArray (Int,Int) a, String)]
+pgmsWithComments = many1 (do { h <- pgmWithComments ; spaces ; return h })
+
+
+pgm :: (IArray UArray a, Integral a) => Parser (UArray (Int,Int) a)
+pgm = do (rows,cols,m,_) <- pgmHeader
          let d = if (m < 256) then 1 else 2
          ip <- getInput
          let body = B.take (rows*cols*d) ip
          setInput $ B.drop (rows*cols*d) ip
          let arr = readArray d rows cols body
-         return arr
+         return (arr)
 
+pgms :: (IArray UArray a, Integral a) => Parser [UArray (Int,Int) a]
 pgms = many1 (do { h <- pgm ; spaces ; return h })
 
 
 -- | Parse the first (and possible only) PGM in a 'ByteString' into an array.  If the parsing succeeds, you will still need to match on the 'Right' constructor to get the array.
-pgmToArray :: B.ByteString -> Either ParseError (UArray (Int,Int) Int)
+pgmToArray :: (Integral a, IArray UArray a) => B.ByteString -> Either ParseError (UArray (Int,Int) a)
 pgmToArray s = parse pgm "Failed to parse PGM." s
 
+-- | The same as 'pgmToArray', but taking also returning the comments in the PGM file as a String.
+pgmToArrayWithComments :: (Integral a, IArray UArray a) => B.ByteString -> Either ParseError (UArray (Int,Int) a, String)
+pgmToArrayWithComments s = parse pgmWithComments "Failed to parse PGM." s
+
 -- | Precisely the same as 'pgmToArray', but this time fetches all the PGMs in the file, and returns them as a list of arrays.
-pgmsToArrays :: B.ByteString -> Either ParseError [UArray (Int,Int) Int]
+pgmsToArrays :: (Integral a, IArray UArray a) => B.ByteString -> Either ParseError [UArray (Int,Int) a]
 pgmsToArrays s = parse pgms "Failed to parse PGMs." s
+
+-- | Same as 'pgmsToArrays', but again returning comments.
+pgmsToArraysWithComments :: (Integral a, IArray UArray a) => B.ByteString -> Either ParseError [(UArray (Int,Int) a, String)]
+pgmsToArraysWithComments s = parse pgmsWithComments "Failed to parse PGMs." s
+
 
 -- | A wrapper around 'pgmsFromHandle' which also opens the file to read from.
 pgmsFromFile :: String -> IO (Either ParseError [UArray (Int,Int) Int])
@@ -103,28 +137,39 @@ readArray16 rows cols src = listArray ((0,0), (rows-1,cols-1)) src'
           src' = pairWith f raw
           f a b = (fromIntegral a)*256 + (fromIntegral b)
 
-readArray :: Int -> Int -> Int -> B.ByteString -> UArray (Int,Int) Int
+readArray :: (IArray UArray a, Integral a) => Int -> Int -> Int -> B.ByteString -> UArray (Int,Int) a
 readArray 1 rows cols src = amap fromIntegral $ readArray8 rows cols src
 readArray 2 rows cols src = amap fromIntegral $ readArray16 rows cols src
 
+pair :: [a] -> [(a,a)]
 pair [] = []
-pair (a:[]) = []
+pair (_:[]) = []
 pair (a:b:ls) = (a,b):(pair ls)
 
+pairWith :: (a -> a -> b) -> [a] -> [b]
 pairWith f ls = Prelude.map (\(a,b) -> f a b) $ pair ls
 
-pgmHeaderString :: Int -> Int -> Word16 -> B.ByteString
-pgmHeaderString rows cols maxVal = pack $ Prelude.map c2w $ 
-                             printf "P5 %d %d %d\n" cols rows maxVal
+pgmHeaderString :: Int -> Int -> Word16 -> String -> B.ByteString
+pgmHeaderString rows cols mVal comm = pack $ (Prelude.map c2w) $
+                                           printf "P5\n#%s\n%d %d %d\n" (format comm) 
+                                                      (cols+1) (rows+1) mVal
+    where format str = Data.List.intercalate "\n#" $ lines str
 
 -- | Takes an array (which must already be coerced to have element type 'Word16') and produces a 'ByteString' encoding that array as a PGM.
 arrayToPgm :: IArray m Word16 => m (Int,Int) Word16 -> B.ByteString
-arrayToPgm arr = pgmHeaderString rows cols maxVal `B.append`
-                   listToByteString maxVal (elems arr)
-    where (rows,cols) = (ymax-ymin,xmax-xmin)
+arrayToPgm arr = pgmHeaderString rows cols mVal "" `B.append`
+                   listToByteString mVal (elems arr)
+    where (rows,cols) = (xmax-xmin,ymax-ymin)
           ((xmin,ymin),(xmax,ymax)) = bounds arr
-          maxVal = arrayLift max arr
+          mVal = arrayLift max arr
 
+-- | Precisely the same as 'arrayToPgm', but takes a 'String' to encode into the file header as a comment after the magic number but before the width field.
+arrayToPgmWithComment :: IArray m Word16 => m (Int,Int) Word16 -> String -> B.ByteString
+arrayToPgmWithComment arr cm = pgmHeaderString rows cols mVal cm `B.append`
+                   listToByteString mVal (elems arr)
+    where (rows,cols) = (xmax-xmin,ymax-ymin)
+          ((xmin,ymin),(xmax,ymax)) = bounds arr
+          mVal = arrayLift max arr
 
 arrayLift :: (Ix i, IArray m a) => (a -> a -> a) -> m i a -> a
 arrayLift f arr = Prelude.foldl f (head q) q 

@@ -14,3 +14,4 @@ extra-source-files:  README
 Library
   build-depends:     base, parsec >= 3, bytestring, array
   Exposed-Modules:   Graphics.Pgm
+  ghc-options:       -Wall
