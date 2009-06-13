@@ -79,7 +79,7 @@ pgmWithComments = do (rows,cols,m,comments) <- pgmHeader
                      ip <- getInput
                      let body = B.take (rows*cols*d) ip
                      setInput $ B.drop (rows*cols*d) ip
-                     let arr = readArray d rows cols body
+                     let arr = readArray (if d == 1 then Depth8 else Depth16) rows cols body
                      return (arr,comments)
 
 pgmsWithComments :: (IArray UArray a, Integral a) => Parser [(UArray (Int,Int) a, String)]
@@ -92,7 +92,7 @@ pgm = do (rows,cols,m,_) <- pgmHeader
          ip <- getInput
          let body = B.take (rows*cols*d) ip
          setInput $ B.drop (rows*cols*d) ip
-         let arr = readArray d rows cols body
+         let arr = readArray (if d == 1 then Depth8 else Depth16) rows cols body
          return (arr)
 
 pgms :: (IArray UArray a, Integral a) => Parser [UArray (Int,Int) a]
@@ -137,9 +137,11 @@ readArray16 rows cols src = listArray ((0,0), (rows-1,cols-1)) src'
           src' = pairWith f raw
           f a b = (fromIntegral a)*256 + (fromIntegral b)
 
-readArray :: (IArray UArray a, Integral a) => Int -> Int -> Int -> B.ByteString -> UArray (Int,Int) a
-readArray 1 rows cols src = amap fromIntegral $ readArray8 rows cols src
-readArray 2 rows cols src = amap fromIntegral $ readArray16 rows cols src
+data Depth = Depth8 | Depth16
+
+readArray :: (IArray UArray a, Integral a) => Depth -> Int -> Int -> B.ByteString -> UArray (Int,Int) a
+readArray Depth8  rows cols src = amap fromIntegral $ readArray8  rows cols src
+readArray Depth16 rows cols src = amap fromIntegral $ readArray16 rows cols src
 
 pair :: [a] -> [(a,a)]
 pair [] = []
