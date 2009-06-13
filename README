@@ -15,22 +15,41 @@ If you don't have cabal installed, replace it with 'runhaskell Setup.lhs'
 DESCRIPTION
 -----------
 
-Graphics.Pgm is a pure Haskell library to read and write PGM images. It properly supports both 8 bit and 16 bit pixels, and multiple PGMs per file. The PGM is the lowest common denominator of useful image file formats. It consists of a header of the form
+Graphics.Pgm is a pure Haskell library to read and write PGM images. It
+properly supports both 8 bit and 16 bit pixels, and multiple PGMs per file. The
+PGM is the lowest common denominator of useful image file formats. It consists
+of a header of the form
 
 P5 width height maxVal
 
-followed by a single whitespace character, usually a newline, where width, height, and maxVal are positive integers consisting of digits only giving the number of columns, number of rows, and the highest grey level in the image to follow.
+followed by a single whitespace character, usually a newline, where width,
+height, and maxVal are positive integers consisting of digits only giving the
+number of columns, number of rows, and the highest grey level in the image to
+follow.
 
-If maxVal < 256, then the format uses 1 byte per pixel; otherwise it uses 2. The routines in this library properly handle both, including automatically determining which to write when writing an array to disk.
+If maxVal < 256, then the format uses 1 byte per pixel; otherwise it uses 2.
+The routines in this library properly handle both, including automatically
+determining which to write when writing an array to disk.
 
-The header can also contain comments, starting with # on a new line, and continuing to the end of the line. These are ignored by this module.
+The header can also contain comments, starting with # on a new line, and
+continuing to the end of the line. These are ignored by this module.
 
-After the header, the pixel data is written in big-endian binary form, most significant byte first for 16 bit pixels. The pixels are a single row-major raster through the image.
+After the header, the pixel data is written in big-endian binary form, most
+significant byte first for 16 bit pixels. The pixels are a single row-major
+raster through the image.
 
-To put multiple PGMs in a file, append them. This module allows you to put white space between them, though this might choke other implementations.
+To put multiple PGMs in a file, append them. This module allows you to put
+white space between them, though this might choke other implementations.
 
-All arrays returned by this library from PGMs have pixel type Int, since this is simply more useful for most purposes. If you want to write a PGM back out, you must first coerce your pixel type to Word16! There are too many possible ways of handling negative values, larger depths, or other things beyond the comprehension of Word16 to handle with a simple wrapper function. If you know you have positive values less than 2^16, then you can coerce an array arr to Word16 with
+All arrays returned by this library from PGMs have pixel type Int, since this
+is simply more useful for most purposes. If you want to write a PGM back out,
+you must first coerce your pixel type to Word16! There are too many possible
+ways of handling negative values, larger depths, or other things beyond the
+comprehension of Word16 to handle with a simple wrapper function. If you know
+you have positive values less than 2^16, then you can coerce an array arr to
+Word16 with
 
 > amap (fromIntegral :: Int -> Word16) arr
 
-The array's indices (of the form (row,column)) start at (0,0) and run to (height-1,width-1).
+The array's indices (of the form (row,column)) start at (0,0) and run to
+(height-1,width-1).
