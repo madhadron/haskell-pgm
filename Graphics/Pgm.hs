@@ -1,24 +1,48 @@
 {-# LANGUAGE ScopedTypeVariables, FlexibleContexts #-}
 
--- | "Graphics.Pgm" is a pure Haskell library to read and write PGM images.  It properly supports both 8 bit and 16 bit pixels, and multiple PGMs per file.  The PGM is the lowest common denominator of useful image file formats.  It consists of a header of the form
+-- | "Graphics.Pgm" is a pure Haskell library to read and write PGM images.  It
+--   properly supports both 8 bit and 16 bit pixels, and multiple PGMs per
+--   file.  The PGM is the lowest common denominator of useful image file
+--   formats.  It consists of a header of the form
 --
--- @P5 width height maxVal@
+--   @P5 width height maxVal@
 --
--- followed by a single whitespace character, usually a newline, where @width@, @height@, and @maxVal@ are positive integers consisting of digits only giving the number of columns, number of rows, and the highest grey level in the image to follow.
+--   followed by a single whitespace character, usually a newline, where
+--   @width@, @height@, and @maxVal@ are positive integers consisting of digits
+--   only giving the number of columns, number of rows, and the highest grey
+--   level in the image to follow.
 --
--- If @maxVal@ < 256, then the format uses 1 byte per pixel; otherwise it uses 2.  The routines in this library properly handle both, including automatically determining which to write when writing an array to disk.
+--   If @maxVal@ < 256, then the format uses 1 byte per pixel; otherwise it
+--   uses 2.  The routines in this library properly handle both, including
+--   automatically determining which to write when writing an array to disk.
 --
--- The header can also contain comments, starting with @#@ on a new line, and continuing to the end of the line.  These are read out and returned as a String with newlines kept intact (except for the last newline of the last comment line, which is removed).  Comments from anywhere between the header fields are concatenated into the same document.  'pgmToArray' ignores comments; 'pgmToArrayWithComments' reads them.
+--   The header can also contain comments, starting with @#@ on a new line, and
+--   continuing to the end of the line.  These are read out and returned as a
+--   'String' with newlines kept intact (except for the last newline of the
+--   last comment line, which is removed).  Comments from anywhere between the
+--   header fields are concatenated into the same document.  'pgmToArray'
+--   ignores comments; 'pgmToArrayWithComments' reads them.
 --
--- After the header, the pixel data is written in big-endian binary form, most significant byte first for 16 bit pixels.  The pixels are a single row-major raster through the image.
+--   After the header, the pixel data is written in big-endian binary form,
+--   most significant byte first for 16 bit pixels.  The pixels are a single
+--   row-major raster through the image.
 --
--- To put multiple PGMs in a file, append them.  This module allows you to put white space between them, though this might choke other implementations.
+--   To put multiple PGMs in a file, append them.  This module allows you to
+--   put white space between them, though this might choke other
+--   implementations.
 --
--- All arrays returned by this library from PGMs have pixel type 'Int', since this is simply more useful for most purposes.  If you want to write a PGM back out, you must first coerce your pixel type to 'Word16'!  There are too many possible ways of handling negative values, larger depths, or other things beyond the comprehension of 'Word16' to handle with a simple wrapper function.  If you know you have positive values less than 2^16, then you can coerce an array @arr@ to 'Word16' with
+--   All arrays returned by this library from PGMs have pixel type 'Int', since
+--   this is simply more useful for most purposes.  If you want to write a PGM
+--   back out, you must first coerce your pixel type to 'Word16'!  There are
+--   too many possible ways of handling negative values, larger depths, or
+--   other things beyond the comprehension of 'Word16' to handle with a simple
+--   wrapper function.  If you know you have positive values less than 2^16,
+--   then you can coerce an array @arr@ to 'Word16' with
 --
--- > amap (fromIntegral :: Int -> Word16) arr
+--   > amap (fromIntegral :: Int -> Word16) arr
 --
--- The array's indices (of the form (row,column)) start at (0,0) and run to (@height@-1,@width@-1).
+--   The array's indices (of the form (row,column)) start at (0,0) and run to
+--   (@height@-1,@width@-1).
 
 module Graphics.Pgm (pgmToArray,
                      pgmsToArrays,
@@ -99,15 +123,19 @@ pgms :: (IArray UArray a, Integral a) => Parser [UArray (Int,Int) a]
 pgms = many1 (do { h <- pgm ; spaces ; return h })
 
 
--- | Parse the first (and possible only) PGM in a 'ByteString' into an array.  If the parsing succeeds, you will still need to match on the 'Right' constructor to get the array.
+-- | Parse the first (and possible only) PGM in a 'ByteString' into an array.
+--   If the parsing succeeds, you will still need to match on the 'Right'
+--   constructor to get the array.
 pgmToArray :: (Integral a, IArray UArray a) => B.ByteString -> Either ParseError (UArray (Int,Int) a)
 pgmToArray = parse pgm "Failed to parse PGM."
 
--- | The same as 'pgmToArray', but taking also returning the comments in the PGM file as a String.
+-- | The same as 'pgmToArray', but taking also returning the comments in the
+--   PGM file as a 'String'.
 pgmToArrayWithComments :: (Integral a, IArray UArray a) => B.ByteString -> Either ParseError (UArray (Int,Int) a, String)
 pgmToArrayWithComments = parse pgmWithComments "Failed to parse PGM."
 
--- | Precisely the same as 'pgmToArray', but this time fetches all the PGMs in the file, and returns them as a list of arrays.
+-- | Precisely the same as 'pgmToArray', but this time fetches all the PGMs in
+--   the file, and returns them as a list of arrays.
 pgmsToArrays :: (Integral a, IArray UArray a) => B.ByteString -> Either ParseError [UArray (Int,Int) a]
 pgmsToArrays = parse pgms "Failed to parse PGMs."
 
@@ -123,7 +151,8 @@ pgmsFromFile fname = do h <- openFile fname ReadMode
                         hClose h
                         return s
 
--- | Parse all PGMs in the contents of a handle, and return them as a list of arrays.
+-- | Parse all PGMs in the contents of a handle, and return them as a list of
+--   arrays.
 pgmsFromHandle :: Handle -> IO (Either ParseError [UArray (Int,Int) Int])
 pgmsFromHandle = liftM pgmsToArrays . B.hGetContents
 
@@ -157,7 +186,8 @@ pgmHeaderString rows cols mVal comm = pack $ Prelude.map c2w $
                                                       (cols+1) (rows+1) mVal
     where format = Data.List.intercalate "\n#" . lines
 
--- | Takes an array (which must already be coerced to have element type 'Word16') and produces a 'ByteString' encoding that array as a PGM.
+-- | Takes an array (which must already be coerced to have element type
+--   'Word16') and produces a 'ByteString' encoding of that array as a PGM.
 arrayToPgm :: IArray m Word16 => m (Int,Int) Word16 -> B.ByteString
 arrayToPgm arr = pgmHeaderString rows cols mVal "" `B.append`
                    listToByteString mVal (elems arr)
@@ -165,7 +195,9 @@ arrayToPgm arr = pgmHeaderString rows cols mVal "" `B.append`
           ((xmin,ymin),(xmax,ymax)) = bounds arr
           mVal = arrayLift max arr
 
--- | Precisely the same as 'arrayToPgm', but takes a 'String' to encode into the file header as a comment after the magic number but before the width field.
+-- | Precisely the same as 'arrayToPgm', but takes a 'String' to encode into
+--   the file header as a comment after the magic number but before the width
+--   field.
 arrayToPgmWithComment :: IArray m Word16 => m (Int,Int) Word16 -> String -> B.ByteString
 arrayToPgmWithComment arr cm = pgmHeaderString rows cols mVal cm `B.append`
                    listToByteString mVal (elems arr)
@@ -187,17 +219,20 @@ listToByteString d vs
 arrayToHandle :: IArray m Word16 => Handle -> m (Int,Int) Word16 -> IO ()
 arrayToHandle h arr = B.hPutStr h (arrayToPgm arr)
 
--- | A wrapper around 'arrayToHandle' which opens the file to write to, then closes it afterwards.
+-- | A wrapper around 'arrayToHandle' which opens the file to write to, then
+--   closes it afterwards.
 arrayToFile :: IArray m Word16 => String -> m (Int,Int) Word16 -> IO ()
 arrayToFile fname arr = do h <- openFile fname WriteMode
                            arrayToHandle h arr
                            hClose h
 
--- | Writes a list of arrays to a given handle.  Note that most implementations of PGM will ignore all but the first when they read this file.
+-- | Writes a list of arrays to a given handle.  Note that most implementations
+--   of PGM will ignore all but the first when they read this file.
 arraysToHandle :: IArray m Word16 => Handle -> [m (Int,Int) Word16] -> IO ()
 arraysToHandle = mapM_ . arrayToHandle
 
--- | A wrapper around 'arraysToHandle' which opens and closes the file to write to.
+-- | A wrapper around 'arraysToHandle' which opens and closes the file to write
+--   to.
 arraysToFile :: IArray m Word16 => String -> [m (Int,Int) Word16] -> IO ()
 arraysToFile fname arrs = do h <- openFile fname WriteMode
                              arraysToHandle h arrs
