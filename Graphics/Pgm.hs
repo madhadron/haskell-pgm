@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -XScopedTypeVariables -XFlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleContexts #-}
 
 -- | "Graphics.Pgm" is a pure Haskell library to read and write PGM images.  It properly supports both 8 bit and 16 bit pixels, and multiple PGMs per file.  The PGM is the lowest common denominator of useful image file formats.  It consists of a header of the form
 --
