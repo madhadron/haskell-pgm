@@ -75,7 +75,7 @@ pgmHeader = do magicNumber <?> "magic number"
 
 pgmWithComments :: (IArray UArray a, Integral a) => Parser (UArray (Int,Int) a, String)
 pgmWithComments = do (rows,cols,m,comments) <- pgmHeader
-                     let d = if (m < 256) then 1 else 2
+                     let d = if m < 256 then 1 else 2
                      ip <- getInput
                      let body = B.take (rows*cols*d) ip
                      setInput $ B.drop (rows*cols*d) ip
@@ -88,12 +88,12 @@ pgmsWithComments = many1 (do { h <- pgmWithComments ; spaces ; return h })
 
 pgm :: (IArray UArray a, Integral a) => Parser (UArray (Int,Int) a)
 pgm = do (rows,cols,m,_) <- pgmHeader
-         let d = if (m < 256) then 1 else 2
+         let d = if m < 256 then 1 else 2
          ip <- getInput
          let body = B.take (rows*cols*d) ip
          setInput $ B.drop (rows*cols*d) ip
          let arr = readArray (if d == 1 then Depth8 else Depth16) rows cols body
-         return (arr)
+         return arr
 
 pgms :: (IArray UArray a, Integral a) => Parser [UArray (Int,Int) a]
 pgms = many1 (do { h <- pgm ; spaces ; return h })
@@ -101,19 +101,19 @@ pgms = many1 (do { h <- pgm ; spaces ; return h })
 
 -- | Parse the first (and possible only) PGM in a 'ByteString' into an array.  If the parsing succeeds, you will still need to match on the 'Right' constructor to get the array.
 pgmToArray :: (Integral a, IArray UArray a) => B.ByteString -> Either ParseError (UArray (Int,Int) a)
-pgmToArray s = parse pgm "Failed to parse PGM." s
+pgmToArray = parse pgm "Failed to parse PGM."
 
 -- | The same as 'pgmToArray', but taking also returning the comments in the PGM file as a String.
 pgmToArrayWithComments :: (Integral a, IArray UArray a) => B.ByteString -> Either ParseError (UArray (Int,Int) a, String)
-pgmToArrayWithComments s = parse pgmWithComments "Failed to parse PGM." s
+pgmToArrayWithComments = parse pgmWithComments "Failed to parse PGM."
 
 -- | Precisely the same as 'pgmToArray', but this time fetches all the PGMs in the file, and returns them as a list of arrays.
 pgmsToArrays :: (Integral a, IArray UArray a) => B.ByteString -> Either ParseError [UArray (Int,Int) a]
-pgmsToArrays s = parse pgms "Failed to parse PGMs." s
+pgmsToArrays = parse pgms "Failed to parse PGMs."
 
 -- | Same as 'pgmsToArrays', but again returning comments.
 pgmsToArraysWithComments :: (Integral a, IArray UArray a) => B.ByteString -> Either ParseError [(UArray (Int,Int) a, String)]
-pgmsToArraysWithComments s = parse pgmsWithComments "Failed to parse PGMs." s
+pgmsToArraysWithComments = parse pgmsWithComments "Failed to parse PGMs."
 
 
 -- | A wrapper around 'pgmsFromHandle' which also opens the file to read from.
@@ -125,7 +125,7 @@ pgmsFromFile fname = do h <- openFile fname ReadMode
 
 -- | Parse all PGMs in the contents of a handle, and return them as a list of arrays.
 pgmsFromHandle :: Handle -> IO (Either ParseError [UArray (Int,Int) Int])
-pgmsFromHandle h = liftM pgmsToArrays $ B.hGetContents h
+pgmsFromHandle = liftM pgmsToArrays . B.hGetContents
 
 
 readArray8 :: Int -> Int -> B.ByteString -> UArray (Int,Int) Word8
@@ -135,7 +135,7 @@ readArray16 :: Int -> Int -> B.ByteString -> UArray (Int,Int) Word16
 readArray16 rows cols src = listArray ((0,0), (rows-1,cols-1)) src'
     where raw = unpack src
           src' = pairWith f raw
-          f a b = (fromIntegral a)*256 + (fromIntegral b)
+          f a b = 256 * fromIntegral a + fromIntegral b
 
 data Depth = Depth8 | Depth16
 
@@ -146,16 +146,16 @@ readArray Depth16 rows cols src = amap fromIntegral $ readArray16 rows cols src
 pair :: [a] -> [(a,a)]
 pair [] = []
 pair (_:[]) = []
-pair (a:b:ls) = (a,b):(pair ls)
+pair (a:b:ls) = (a,b) : pair ls
 
 pairWith :: (a -> a -> b) -> [a] -> [b]
-pairWith f ls = Prelude.map (\(a,b) -> f a b) $ pair ls
+pairWith f ls = Prelude.map (uncurry f) $ pair ls
 
 pgmHeaderString :: Int -> Int -> Word16 -> String -> B.ByteString
-pgmHeaderString rows cols mVal comm = pack $ (Prelude.map c2w) $
+pgmHeaderString rows cols mVal comm = pack $ Prelude.map c2w $
                                            printf "P5\n#%s\n%d %d %d\n" (format comm)
                                                       (cols+1) (rows+1) mVal
-    where format str = Data.List.intercalate "\n#" $ lines str
+    where format = Data.List.intercalate "\n#" . lines
 
 -- | Takes an array (which must already be coerced to have element type 'Word16') and produces a 'ByteString' encoding that array as a PGM.
 arrayToPgm :: IArray m Word16 => m (Int,Int) Word16 -> B.ByteString
@@ -179,9 +179,9 @@ arrayLift f arr = Prelude.foldl f (head q) q
 
 listToByteString :: Word16 -> [Word16] -> B.ByteString
 listToByteString d vs
-    | d < 256 = pack $ ((Prelude.map fromIntegral vs)::[Word8])
-    | otherwise = pack $ concat $ map (\x -> [fromIntegral (x `div` 256),
-                                              fromIntegral (x `rem` 256)]) vs
+    | d < 256 = pack ((Prelude.map fromIntegral vs)::[Word8])
+    | otherwise = pack $ concatMap (\x -> [fromIntegral (x `div` 256),
+                                           fromIntegral (x `rem` 256)]) vs
 
 -- | Write a single array to a given handle.
 arrayToHandle :: IArray m Word16 => Handle -> m (Int,Int) Word16 -> IO ()
@@ -195,7 +195,7 @@ arrayToFile fname arr = do h <- openFile fname WriteMode
 
 -- | Writes a list of arrays to a given handle.  Note that most implementations of PGM will ignore all but the first when they read this file.
 arraysToHandle :: IArray m Word16 => Handle -> [m (Int,Int) Word16] -> IO ()
-arraysToHandle h arrs = mapM_ (arrayToHandle h) arrs
+arraysToHandle = mapM_ . arrayToHandle
 
 -- | A wrapper around 'arraysToHandle' which opens and closes the file to write to.
 arraysToFile :: IArray m Word16 => String -> [m (Int,Int) Word16] -> IO ()
