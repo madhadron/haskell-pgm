@@ -33,5 +33,4 @@ All arrays returned by this library from PGMs have pixel type Int, since this is
 
 > amap (fromIntegral :: Int -> Word16) arr
 
-The array's indices (of the form (row,column)) start at (0,0) and run to (height-1,width-1). 
-
+The array's indices (of the form (row,column)) start at (0,0) and run to (height-1,width-1).

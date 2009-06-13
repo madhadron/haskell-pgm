@@ -27,7 +27,6 @@ instance Eq ParseError where
 
 prop_readwrite_id (arr :: UArray (Int,Int) Word16) = pgmToArray (arrayToPgm arr) == Right arr
 
-    
-prop_readwrite_with_comment_id (arr :: UArray (Int,Int) Word16) (str :: String) = 
-    (pgmToArrayWithComments (arrayToPgmWithComment arr str)) == Right (arr, str)
 
+prop_readwrite_with_comment_id (arr :: UArray (Int,Int) Word16) (str :: String) =
+    (pgmToArrayWithComments (arrayToPgmWithComment arr str)) == Right (arr, str)

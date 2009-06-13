@@ -1,30 +1,30 @@
 {-# OPTIONS_GHC -XScopedTypeVariables -XFlexibleContexts #-}
 
 -- | "Graphics.Pgm" is a pure Haskell library to read and write PGM images.  It properly supports both 8 bit and 16 bit pixels, and multiple PGMs per file.  The PGM is the lowest common denominator of useful image file formats.  It consists of a header of the form
--- 
+--
 -- @P5 width height maxVal@
--- 
+--
 -- followed by a single whitespace charater, usually a newline, where @width@, @height@, and @maxVal@ are positive integers consisting of digits only giving the number of columns, number of rows, and the highest grey level in the image to follow.
--- 
+--
 -- If @maxVal@ < 256, then the format uses 1 byte per pixel; otherwise it uses 2.  The routines in this library properly handle both, including automatically determining which to write when writing an array to disk.
--- 
+--
 -- The header can also contain comments, starting with @#@ on a new line, and continuing to the end of the line.  These are read out and returned as a String with newlines kept intact (except for the last newline of the last comment line, which is removed).  Comments from anywhere between the header fields are concatenated into the same document.  'pgmToArray' ignores comments; 'pgmToArrayWithComments' reads them.
--- 
+--
 -- After the header, the pixel data is written in big-endian binary form, most significant byte first for 16 bit pixels.  The pixels are a single row-major raster through the image.
--- 
+--
 -- To put multiple PGMs in a file, append them.  This module allows you to put white space between them, though this might choke other implementations.
--- 
+--
 -- All arrays returned by this library from PGMs have pixel type 'Int', since this is simply more useful for most purposes.  If you want to write a PGM back out, you must first coerce your pixel type to 'Word16'!  There are too many possibile ways of handling negative values, larger depths, or other things beyond the comprehension of 'Word16' to handle with a simple wrapper function.  If you know you have positive values less than 2^16, then you can coerce an array @arr@ to 'Word16' with
--- 
+--
 -- > amap (fromIntegral :: Int -> Word16) arr
--- 
+--
 -- The array's indices (of the form (row,column)) start at (0,0) and run to (@height@-1,@width@-1).
 
-module Graphics.Pgm (pgmToArray, 
-                     pgmsToArrays, 
+module Graphics.Pgm (pgmToArray,
+                     pgmsToArrays,
                      pgmToArrayWithComments, pgmsToArraysWithComments,
-                     arrayToPgmWithComment, 
-                     pgmsFromFile, pgmsFromHandle, 
+                     arrayToPgmWithComment,
+                     pgmsFromFile, pgmsFromHandle,
             arrayToPgm, arrayToFile, arrayToHandle, arraysToHandle,
              arraysToFile) where
 
@@ -32,7 +32,7 @@ import Text.Parsec
 import Text.Parsec.ByteString (Parser)
 import System.IO
 import Data.Array.Unboxed
-import Data.ByteString as B (take, drop, unpack, pack, ByteString, 
+import Data.ByteString as B (take, drop, unpack, pack, ByteString,
                              append, hGetContents, hPutStr)
 import Data.ByteString.Internal (c2w)
 import Data.Word
@@ -151,7 +151,7 @@ pairWith f ls = Prelude.map (\(a,b) -> f a b) $ pair ls
 
 pgmHeaderString :: Int -> Int -> Word16 -> String -> B.ByteString
 pgmHeaderString rows cols mVal comm = pack $ (Prelude.map c2w) $
-                                           printf "P5\n#%s\n%d %d %d\n" (format comm) 
+                                           printf "P5\n#%s\n%d %d %d\n" (format comm)
                                                       (cols+1) (rows+1) mVal
     where format str = Data.List.intercalate "\n#" $ lines str
 
@@ -172,13 +172,13 @@ arrayToPgmWithComment arr cm = pgmHeaderString rows cols mVal cm `B.append`
           mVal = arrayLift max arr
 
 arrayLift :: (Ix i, IArray m a) => (a -> a -> a) -> m i a -> a
-arrayLift f arr = Prelude.foldl f (head q) q 
+arrayLift f arr = Prelude.foldl f (head q) q
     where q = elems arr
-          
+
 listToByteString :: Word16 -> [Word16] -> B.ByteString
 listToByteString d vs
     | d < 256 = pack $ ((Prelude.map fromIntegral vs)::[Word8])
-    | otherwise = pack $ concat $ map (\x -> [fromIntegral (x `div` 256), 
+    | otherwise = pack $ concat $ map (\x -> [fromIntegral (x `div` 256),
                                               fromIntegral (x `rem` 256)]) vs
 
 -- | Write a single array to a given handle.
