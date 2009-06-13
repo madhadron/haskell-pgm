@@ -44,25 +44,28 @@
 --   The array's indices (of the form (row,column)) start at (0,0) and run to
 --   (@height@-1,@width@-1).
 
-module Graphics.Pgm (pgmToArray,
-                     pgmsToArrays,
-                     pgmToArrayWithComments, pgmsToArraysWithComments,
-                     arrayToPgmWithComment,
-                     pgmsFromFile, pgmsFromHandle,
-            arrayToPgm, arrayToFile, arrayToHandle, arraysToHandle,
-             arraysToFile) where
+module Graphics.Pgm
+  ( pgmToArray,
+    pgmsToArrays,
+    pgmToArrayWithComments, pgmsToArraysWithComments,
+    arrayToPgmWithComment,
+    pgmsFromFile, pgmsFromHandle,
+    arrayToPgm, arrayToFile, arrayToHandle, arraysToHandle,
+    arraysToFile
+  )
+  where
 
-import Text.Parsec
-import Text.Parsec.ByteString (Parser)
-import System.IO
-import Data.Array.Unboxed
-import Data.ByteString as B (take, drop, unpack, pack, ByteString,
-                             append, hGetContents, hPutStr)
+import Control.Monad            (liftM)
+import Data.Array.Unboxed       (IArray, Ix, UArray, amap, bounds, elems, listArray)
 import Data.ByteString.Internal (c2w)
-import Data.Word
-import Text.Printf
-import Control.Monad (liftM)
-import Data.List (intercalate)
+import Data.List                (intercalate)
+import Data.Word                (Word8, Word16)
+import System.IO                (Handle, IOMode(ReadMode, WriteMode), hClose, openFile)
+import Text.Parsec              (ParseError, (<?>), choice, getInput, many1, manyTill, parse, setInput, try)
+import Text.Parsec              (anyChar, char, digit, newline, space, spaces)
+import Text.Parsec.ByteString   (Parser)
+import Text.Printf              (printf)
+import qualified Data.ByteString as B
 
 magicNumber :: Parser ()
 magicNumber = do { char 'P'; char '5'; return () }
@@ -158,11 +161,11 @@ pgmsFromHandle = liftM pgmsToArrays . B.hGetContents
 
 
 readArray8 :: Int -> Int -> B.ByteString -> UArray (Int,Int) Word8
-readArray8 rows cols src = listArray ((0,0), (rows-1,cols-1)) (unpack src)
+readArray8 rows cols src = listArray ((0,0), (rows-1,cols-1)) (B.unpack src)
 
 readArray16 :: Int -> Int -> B.ByteString -> UArray (Int,Int) Word16
 readArray16 rows cols src = listArray ((0,0), (rows-1,cols-1)) src'
-    where raw = unpack src
+    where raw = B.unpack src
           src' = pairWith f raw
           f a b = 256 * fromIntegral a + fromIntegral b
 
@@ -181,7 +184,7 @@ pairWith :: (a -> a -> b) -> [a] -> [b]
 pairWith f ls = Prelude.map (uncurry f) $ pair ls
 
 pgmHeaderString :: Int -> Int -> Word16 -> String -> B.ByteString
-pgmHeaderString rows cols mVal comm = pack $ Prelude.map c2w $
+pgmHeaderString rows cols mVal comm = B.pack $ Prelude.map c2w $
                                            printf "P5\n#%s\n%d %d %d\n" (format comm)
                                                       (cols+1) (rows+1) mVal
     where format = Data.List.intercalate "\n#" . lines
@@ -211,8 +214,8 @@ arrayLift f arr = Prelude.foldl f (head q) q
 
 listToByteString :: Word16 -> [Word16] -> B.ByteString
 listToByteString d vs
-    | d < 256 = pack ((Prelude.map fromIntegral vs)::[Word8])
-    | otherwise = pack $ concatMap (\x -> [fromIntegral (x `div` 256),
+    | d < 256 = B.pack ((Prelude.map fromIntegral vs)::[Word8])
+    | otherwise = B.pack $ concatMap (\x -> [fromIntegral (x `div` 256),
                                            fromIntegral (x `rem` 256)]) vs
 
 -- | Write a single array to a given handle.
