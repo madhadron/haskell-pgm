@@ -4,7 +4,7 @@
 --
 -- @P5 width height maxVal@
 --
--- followed by a single whitespace charater, usually a newline, where @width@, @height@, and @maxVal@ are positive integers consisting of digits only giving the number of columns, number of rows, and the highest grey level in the image to follow.
+-- followed by a single whitespace character, usually a newline, where @width@, @height@, and @maxVal@ are positive integers consisting of digits only giving the number of columns, number of rows, and the highest grey level in the image to follow.
 --
 -- If @maxVal@ < 256, then the format uses 1 byte per pixel; otherwise it uses 2.  The routines in this library properly handle both, including automatically determining which to write when writing an array to disk.
 --
@@ -14,7 +14,7 @@
 --
 -- To put multiple PGMs in a file, append them.  This module allows you to put white space between them, though this might choke other implementations.
 --
--- All arrays returned by this library from PGMs have pixel type 'Int', since this is simply more useful for most purposes.  If you want to write a PGM back out, you must first coerce your pixel type to 'Word16'!  There are too many possibile ways of handling negative values, larger depths, or other things beyond the comprehension of 'Word16' to handle with a simple wrapper function.  If you know you have positive values less than 2^16, then you can coerce an array @arr@ to 'Word16' with
+-- All arrays returned by this library from PGMs have pixel type 'Int', since this is simply more useful for most purposes.  If you want to write a PGM back out, you must first coerce your pixel type to 'Word16'!  There are too many possible ways of handling negative values, larger depths, or other things beyond the comprehension of 'Word16' to handle with a simple wrapper function.  If you know you have positive values less than 2^16, then you can coerce an array @arr@ to 'Word16' with
 --
 -- > amap (fromIntegral :: Int -> Word16) arr
 --
