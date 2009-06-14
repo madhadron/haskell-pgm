@@ -1,3 +1,0 @@
-module Properties where
-
-import Test.QuickCheck
