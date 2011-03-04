@@ -1,5 +1,5 @@
 name:               pgm
-version:            0.1.1
+version:            0.1.2
 synopsis:           Pure Haskell implementation of PGM image format
 description:        Reads and writes 8 and 16 bit PGM images, loading them into Haskell as arrays.
 category:           Graphics
@@ -18,7 +18,7 @@ library
 
   build-depends:
     array      >= 0 && < 1,
-    base       >= 3 && < 4,
+    base       >= 3 && < 5,
     bytestring >= 0 && < 1,
     parsec     >= 3 && < 4
 
